@@ -1,0 +1,18 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/aschey/CLionProjects/Assignment1a/main.c
+stdio.h
+-
+stdlib.h
+-
+sys/wait.h
+-
+unistd.h
+-
+
