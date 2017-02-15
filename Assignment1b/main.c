@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/wait.h>
+#include <ctype.h>
 
 #define MAX_LINE 80
 #define HIST_SIZE 10
@@ -10,6 +11,7 @@
 char *removeN(char *, int);
 int parseArgs(char *[], char *);
 int parseHistory(char *[], char *);
+int isPositiveInt(char *);
 
 typedef struct {
     size_t used;
@@ -23,7 +25,7 @@ void dispose(Array *array);
 char *get(int index, Array array);
 
 int main() {
-    int commandNumber = 0;
+    int currentCommand = 0;
     int status = 0;
     char *line = NULL;
     char *args[MAX_LINE / 2 + 1];
@@ -31,7 +33,6 @@ int main() {
     Array history;
 
     initArray(&history);
-
     while (1) {
         printf("osh> ");
         fflush(stdout);
@@ -39,27 +40,35 @@ int main() {
             int arraySize;
             if (strcmp("!!\n", line) == 0) {
                 // Get the most recent command
-                line = get(commandNumber - 1, history);
+                line = get(currentCommand - 1, history);
                 // Load the command into "args"
                 arraySize = parseHistory(args, line);
-                if (arraySize == NULL) {
+                // Just return to the prompt if no commands have been executed yet.
+                if (arraySize == 0) {
                     continue;
                 }
             }
             else if (line[0] == '!') {
-                int chosenCommand = atoi(removeN(line, 1)) - 1;
+                char *commandNumber = removeN(line, 1);
+                if (!isPositiveInt(commandNumber)) {
+                    printf("Argument must be a positive integer.\n");
+                    continue;
+                }
+                int chosenCommand = atoi(commandNumber) - 1;
                 // Get the chosen command
                 line = get(chosenCommand, history);
                 // Load the command into "args"
                 arraySize = parseHistory(args, line);
-                if (arraySize == NULL) {
+                if (arraySize == 0) {
+                    printf("No such command in history\n");
                     continue;
                 }
+                free(commandNumber);
             }
             else if (strcmp("history\n", line) == 0) {
                 char *val = NULL;
                 // Get the top 10 commands, or just the top n if n < 10
-                for (int i = commandNumber; i > commandNumber - 10 && i > 0; i--) {
+                for (int i = currentCommand; i > currentCommand - 10 && i > 0; i--) {
                     int currentIndex = i - 1;
                     val = strdup(get(currentIndex, history));
                     // If we reach a NULL, there are fewer than 10 commands
@@ -89,20 +98,25 @@ int main() {
 
             // Save the command in the history array
             add(line, &history);
-            commandNumber++;
+            currentCommand++;
 
             if (fork() == 0) {
                 status = execvp(args[0], args);
-                if (status != 0) {
+                // Status of -1 indicates error
+                if (status == -1) {
+                    perror("error");
                     break;
                 }
             }
             else if (waitForChild == 1) {
                 wait(&status);
-                if (status != 0) {
+                // Break out of the process didn't exit correctly
+                if (!WIFEXITED(status)) {
                     break;
                 }
             }
+            // Wait for child process to finish printing
+            sleep(1);
         }
     }
     free(line);
@@ -116,6 +130,16 @@ char *removeN(char *c, int n) {
     size_t newStrLen = strlen(c) + 1 - n;
     char *newString = malloc(newStrLen * sizeof(char));
     return strncpy(newString, &c[n], newStrLen);
+}
+
+int isPositiveInt(char *str) {
+    // Don't check newline character
+    for (int i = 0; i < strlen(str) - 1; i++) {
+        if (!isdigit(str[i])) {
+            return 0;
+        }
+    }
+    return 1;
 }
 
 int parseArgs(char *args[], char *line) {
@@ -145,8 +169,7 @@ int parseArgs(char *args[], char *line) {
 
 int parseHistory(char *args[], char *line) {
     if (line == NULL) {
-        printf("No such command in history\n");
-        return NULL;
+        return 0;
     }
     printf("%s\n", line);
     return parseArgs(args, line);

@@ -15,4 +15,8 @@ sys/wait.h
 -
 unistd.h
 -
+string.h
+-
+ctype.h
+-
 
