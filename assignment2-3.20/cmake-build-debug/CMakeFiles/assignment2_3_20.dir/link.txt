@@ -1,0 +1,1 @@
+/usr/bin/cc   -pthread -g   CMakeFiles/assignment2_3_20.dir/main.c.o  -o assignment2_3_20 
