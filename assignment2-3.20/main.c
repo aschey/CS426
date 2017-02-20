@@ -33,14 +33,13 @@ int get_next_available(int);
 void release_pid(int);
 void *simulate_process(void *);
 
-int main() {
+int main(int argc, char *argv[]) {
     srand((unsigned int)time(NULL));
     allocate_map();
-    int nThreads = 10000;
+    int nThreads = atoi(argv[1]);
     pthread_t tid[nThreads];
     for (int i = 0; i < nThreads; i++) {
         pthread_create(&tid[i], NULL, simulate_process, NULL);
-        //sleep(3);
     }
     for (int i = 0; i < nThreads; i++) {
         pthread_join(tid[i], NULL);
@@ -58,7 +57,7 @@ void *simulate_process(void *vargp) {
     }
     printf("Requesting PID %d\n", pid);
     pthread_mutex_unlock(&bitmap.allocate_mutex);
-    unsigned int sleep_time = (unsigned)RANDRANGE(0, 10);
+    unsigned int sleep_time = (unsigned)RANDRANGE(0, 3);
     sleep(sleep_time);
     pthread_mutex_lock(&bitmap.release_mutex);
     release_pid(pid);

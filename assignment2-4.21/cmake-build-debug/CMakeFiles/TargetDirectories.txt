@@ -1,0 +1,3 @@
+/home/aschey/CLionProjects/assignment2-4.21/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/aschey/CLionProjects/assignment2-4.21/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/aschey/CLionProjects/assignment2-4.21/cmake-build-debug/CMakeFiles/assignment2_4_21.dir

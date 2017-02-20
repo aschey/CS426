@@ -1,0 +1,1 @@
+/usr/bin/cc   -pthread -g   CMakeFiles/assignment2_4_21.dir/main.c.o  -o assignment2_4_21 
