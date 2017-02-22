@@ -33,45 +33,23 @@ int allocate_map(void);
 int allocate_pid(void);
 int get_next_available(int);
 void release_pid(int);
-void *simulate_process(void *);
 
 int main(int argc, char *argv[]) {
-    srand((unsigned int)time(NULL));
-    // Initialize bitmap
-    allocate_map();
-    int nThreads = atoi(argv[1]);
-    // Store thread IDs
-    pthread_t tid[nThreads];
-    for (int i = 0; i < nThreads; i++) {
-        pthread_create(&tid[i], NULL, simulate_process, NULL);
-    }
-    for (int i = 0; i < nThreads; i++) {
-        pthread_join(tid[i], NULL);
-    }
-    return 0;
-}
+    int a = allocate_pid();
+    printf("allocating PID %d\n", a);
+    int b = allocate_pid();
+    printf("allocating PID %d\n", b);
+    int c = allocate_pid();
+    printf("allocating PID %d\n", c);
 
-void *simulate_process(void *vargp) {
-    // Don't let other threads request or release PIDs while the current thread is requesting a PID
-    pthread_mutex_lock(&bitmap.mutex);
-    int pid = allocate_pid();
-    // Bitmap is full
-    if (pid == -1) {
-        printf("Insufficient PIDs available to create new process.\n");
-        pthread_mutex_unlock(&bitmap.mutex);
-        return NULL;
-    }
-    printf("Requesting PID %d\n", pid);
-    pthread_mutex_unlock(&bitmap.mutex);
-    // Sleep between 0 and 3 seconds
-    unsigned int sleep_time = (unsigned)RANDRANGE(0, 3);
-    sleep(sleep_time);
-    // Don't let other threads request or release PIDs while the current thread is releasing a PID
-    pthread_mutex_lock(&bitmap.mutex);
-    release_pid(pid);
-    printf("Releasing PID %d\n", pid);
-    pthread_mutex_unlock(&bitmap.mutex);
-    return NULL;
+    release_pid(a);
+    printf("releasing PID %d\n", a);
+    release_pid(b);
+    printf("releasing PID %d\n", b);
+    release_pid(c);
+    printf("releasing PID %d\n", c);
+    
+    return 0;
 }
 
 void set_bit(int a[], int k) {
