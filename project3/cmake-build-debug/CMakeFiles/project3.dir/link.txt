@@ -1,0 +1,1 @@
+/usr/bin/cc   -pthread -g   CMakeFiles/project3.dir/main.c.o  -o project3 
