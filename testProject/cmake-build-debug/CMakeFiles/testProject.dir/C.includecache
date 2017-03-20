@@ -1,0 +1,26 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/aschey/CLionProjects/testProject/main.c
+stdio.h
+-
+signal.h
+-
+unistd.h
+-
+stdlib.h
+-
+string.h
+-
+pthread.h
+-
+sys/syscall.h
+-
+semaphore.h
+-
+
