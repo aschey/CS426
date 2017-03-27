@@ -40,16 +40,22 @@ int wc = 0;
 int read_count = 0;
 
 int main(int argc, char *argv[]) {
-    unsigned int sleep_time = 10;
-    int n = 10;
-
-    // Dummy tid. Don't actually need to use this since pthread_join isn't used.
-    pthread_t tid;
-    for (int i = 0; i < n; i++) {
-        pthread_create(&tid, NULL, read2, NULL);
-        pthread_create(&tid, NULL, write2, NULL);
-    }
-    sleep(sleep_time);
+    pid_t pid = fork();
+    //if (pid == 0) {
+        fork();
+    //}
+    fork();
+    printf("C\n");
+//    unsigned int sleep_time = 10;
+//    int n = 10;
+//
+//    // Dummy tid. Don't actually need to use this since pthread_join isn't used.
+//    pthread_t tid;
+//    for (int i = 0; i < n; i++) {
+//        pthread_create(&tid, NULL, read2, NULL);
+//        pthread_create(&tid, NULL, write2, NULL);
+//    }
+//    sleep(sleep_time);
     return 0;
 }
 
