@@ -13,4 +13,8 @@ string.h
 -
 inttypes.h
 -
+stdbool.h
+-
+stdlib.h
+-
 
