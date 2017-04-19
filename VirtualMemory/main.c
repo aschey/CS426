@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -20,24 +21,17 @@
 
 
 //#define FRAME_SIZE 256
-#define FRAME_SIZE 128
+//#define FRAME_SIZE 128
 #define PAGE_SIZE 256
 #define TLB_SIZE 16
 #define PAGE_TABLE_SIZE 256
 //#define MEMORY_SIZE 65536
-#define MEMORY_SIZE 32768
-
-int page_faults = 0;
-int tlb_hits = 0;
-int current = 0;
-int8_t memory[MEMORY_SIZE];
-bool is_used[PAGE_SIZE];
+//#define MEMORY_SIZE 32768
 
 typedef struct {
     int key;
     int value;
     bool valid;
-
 } TableEntry;
 
 typedef struct {
@@ -49,55 +43,25 @@ typedef struct {
     TableEntry entries[PAGE_TABLE_SIZE];
 } PageTable;
 
-void init_TLB(TLB *tlb, int length) {
-    for (int i = 0; i < length; i++) {
-        tlb->entries[i].key = -1;
-        tlb->entries[i].value = -1;
-        tlb->entries[i].valid = false;
-    }
-}
+int FRAME_SIZE;
+int MEMORY_SIZE;
+int page_faults = 0;
+int tlb_hits = 0;
+int page_table_index = 0;
+int8_t *memory;
+bool is_used[PAGE_SIZE];
+PageTable page_table;
+TLB tlb;
 
-void init_page_table(PageTable *page_table, int length) {
-    for (int i = 0; i < length; i++) {
-        page_table->entries[i].key = 0;
-        page_table->entries[i].value = -1;
-        page_table->entries[i].valid = false;
-    }
-}
+void add_address(unsigned, FILE *);
+void init_TLB(TLB *, int);
+void init_page_table(PageTable *, int);
 
-TableEntry get(PageTable page_table, int page_number) {
-    return page_table.entries[page_number];
-}
-
-void set(PageTable *page_table, int page_number, int base) {
-    page_table->entries[page_number].value = base;
-}
-
-void add(TLB *tlb, int page_number, int frame_number) {
-    TableEntry entry = {
-            .key = page_number,
-            .value = frame_number,
-            .valid = false
-    };
-    tlb->entries[tlb->current_index] = entry;
-    tlb->current_index = (tlb->current_index + 1) % TLB_SIZE;
-}
-
-int search(TableEntry entries[], int page_number, int size) {
-    for (int i = 0; i < size; i++) {
-        if (entries[i].key == page_number) {
-            return entries[i].value;
-        }
-    }
-    return -1;
-}
-
-void add_address(unsigned, FILE *, PageTable *, TLB *);
 int main() {
     //memset(page_table, -1, sizeof page_table);
     memset(is_used, false, sizeof is_used);
-    TLB tlb;
-    PageTable page_table;
+    //TLB tlb;
+    //PageTable page_table;
     tlb.current_index = 0;
     init_TLB(&tlb, TLB_SIZE);
     init_page_table(&page_table, PAGE_TABLE_SIZE);
@@ -109,58 +73,138 @@ int main() {
     }
     unsigned current_addr;
     FILE *backing_store = fopen("BACKING_STORE.bin", "r");
+
+    int c;
+    printf("Enter 1 for a memory size of 2 ^ 16 bytes or enter 2 for a memory size of 2 ^ 15 bytes: ");
+    while (1) {
+        c = getchar();
+        if (c == '1' || c == '2') {
+            break;
+        }
+    }
+    if (c == '1') {
+        FRAME_SIZE = 256;
+        MEMORY_SIZE = 65536;
+    }
+    else {
+        FRAME_SIZE = 128;
+        MEMORY_SIZE = 32768;
+    }
+
+    memory = malloc(MEMORY_SIZE * sizeof(int8_t));
+
     while (fscanf(virtual_addrs, "%d", &current_addr) > 0) {
-        add_address(current_addr, backing_store, &page_table, &tlb);
+        add_address(current_addr, backing_store);
     }
     printf("%d %d\n", page_faults, tlb_hits);
     return 0;
 }
 
-void add_address(unsigned virtual_address, FILE *backing_store, PageTable *page_table, TLB *tlb) {
+void init_TLB(TLB *tlb, int length) {
+    for (int i = 0; i < length; i++) {
+        TableEntry entry = {
+                .key = -1,
+                .value = -1,
+                .valid = false
+        };
+        tlb->entries[i] = entry;
+    }
+}
+
+void init_page_table(PageTable *page_table, int length) {
+    for (int i = 0; i < length; i++) {
+        TableEntry entry = {
+                .key = 0,
+                .value = -1,
+                .valid = false
+        };
+        page_table->entries[i] = entry;
+    }
+}
+
+TableEntry get(PageTable page_table, int page_number) {
+    TableEntry defaultEntry = {
+        .value = -1
+    };
+    TableEntry entry = page_table.entries[page_number];
+    return entry.valid ? entry : defaultEntry;
+
+}
+
+void set(PageTable *page_table2, int page_number, int base) {
+    page_table.entries[page_number].value = base;
+    page_table.entries[page_number].valid = true;
+}
+
+void add(TLB *tlb2, int page_number, int frame_number) {
+    TableEntry entry = {
+            .key = page_number,
+            .value = frame_number,
+            .valid = true
+    };
+    tlb.entries[tlb.current_index] = entry;
+    tlb.current_index = (tlb.current_index + 1) % TLB_SIZE;
+}
+
+int search(TableEntry entries[], int page_number, int size) {
+    for (int i = 0; i < size; i++) {
+        if (entries[i].key == page_number && entries[i].valid) {
+            return entries[i].value;
+        }
+    }
+    return -1;
+}
+
+void add_address(unsigned virtual_address, FILE *backing_store) {
     unsigned address_lower16 = virtual_address & 0xFFFF;
     unsigned page_number = (address_lower16 >> 8);
     unsigned offset = address_lower16 & 0xFF;
     int current_base;
     int phys_addr;
     int tlb_val;
-    if ((tlb_val = search(tlb->entries, page_number, TLB_SIZE)) >= 0) {
+    if ((tlb_val = search(tlb.entries, page_number, TLB_SIZE)) >= 0) {
         current_base = tlb_val;
         tlb_hits++;
     }
     else {
         TableEntry page;
-        if ((page = get(*page_table, page_number)).value >= 0) {
+
+        if (page_table.entries[page_number].valid) {
+            page = page_table.entries[page_number];
             current_base = page.value;
         }
         else {
-            current_base = current;
-//            if (current_base > 128) {
-//                printf("%d\n", current_base);
-//            }
-//
-//            if (is_used[current_base]) {
-//                printf("test\n");
-//            }
-            set(page_table, page_number, current);
-            //current += FRAME_SIZE;
-            //current++;
-            current = (current + 1) % FRAME_SIZE;
+            current_base = page_table_index;
+            if (is_used[page_table_index]) {
+                for (int i = 0; i < PAGE_TABLE_SIZE; i++) {
+                    if (page_table.entries[i].valid && page_table.entries[i].value == page_table_index) {
+                        page_table.entries[i].valid = false;
+                        break;
+                    }
+                }
+                for (int i = 0; i < FRAME_SIZE; i++) {
+                    if (tlb.entries[i].valid && tlb.entries[i].value == page_table_index) {
+                        tlb.entries[i].valid = false;
+                        break;
+                    }
+                }
+            }
+            else {
+                is_used[page_table_index] = true;
+            }
+            set(&page_table, page_number, current_base);
+            page_table_index = (page_table_index + 1) % FRAME_SIZE;
+
             page_faults++;
-            is_used[current_base] = true;
+
             fseek(backing_store, page_number * PAGE_SIZE, SEEK_SET);
-            fread(&memory[current_base * FRAME_SIZE], 1, PAGE_SIZE, backing_store);
+            fread(&memory[current_base * PAGE_SIZE], 1, PAGE_SIZE, backing_store);
         }
-        add(tlb, page_number, current_base);
+        add(&tlb, page_number, current_base);
     }
-    phys_addr = (current_base * FRAME_SIZE) + offset;
-//    if (phys_addr >= MEMORY_SIZE) {
-//        printf("test\n");
-//    }
+    phys_addr = (current_base * PAGE_SIZE) + offset;
+
     int8_t value = memory[phys_addr];
-//    for (int i = 0; i < TLB_SIZE; i++) {
-//        printf("%d %d | ", tlb->page_number[i], tlb->frame_number[i]);
-//    }
-//    printf("\n");
-    printf("%d %d %d\n", virtual_address, phys_addr, value);
-    //printf("%d %d %d %d %d\n", virtual_address, current_base + offset, current_base, offset, page_number);
+
+    printf("Virtual address: %d Physical address: %d Value: %d\n", virtual_address, phys_addr, value);
 }
