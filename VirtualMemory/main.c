@@ -20,13 +20,9 @@
 //      page fault occurs)
 
 
-//#define FRAME_SIZE 256
-//#define FRAME_SIZE 128
 #define PAGE_SIZE 256
 #define TLB_SIZE 16
 #define PAGE_TABLE_SIZE 256
-//#define MEMORY_SIZE 65536
-//#define MEMORY_SIZE 32768
 
 typedef struct {
     int key;
@@ -43,7 +39,7 @@ typedef struct {
     TableEntry entries[PAGE_TABLE_SIZE];
 } PageTable;
 
-int FRAME_SIZE;
+int NUMBER_OF_FRAMES;
 int MEMORY_SIZE;
 int page_faults = 0;
 int tlb_hits = 0;
@@ -58,10 +54,7 @@ void init_TLB(TLB *, int);
 void init_page_table(PageTable *, int);
 
 int main() {
-    //memset(page_table, -1, sizeof page_table);
     memset(is_used, false, sizeof is_used);
-    //TLB tlb;
-    //PageTable page_table;
     tlb.current_index = 0;
     init_TLB(&tlb, TLB_SIZE);
     init_page_table(&page_table, PAGE_TABLE_SIZE);
@@ -73,6 +66,10 @@ int main() {
     }
     unsigned current_addr;
     FILE *backing_store = fopen("BACKING_STORE.bin", "r");
+    if (!backing_store) {
+        perror("fopen");
+        return 1;
+    }
 
     int c;
     printf("Enter 1 for a memory size of 2 ^ 16 bytes or enter 2 for a memory size of 2 ^ 15 bytes: ");
@@ -83,20 +80,26 @@ int main() {
         }
     }
     if (c == '1') {
-        FRAME_SIZE = 256;
+        NUMBER_OF_FRAMES = 256;
         MEMORY_SIZE = 65536;
     }
     else {
-        FRAME_SIZE = 128;
+        NUMBER_OF_FRAMES = 128;
         MEMORY_SIZE = 32768;
     }
 
     memory = malloc(MEMORY_SIZE * sizeof(int8_t));
 
+    int num_addresses = 0;
     while (fscanf(virtual_addrs, "%d", &current_addr) > 0) {
         add_address(current_addr, backing_store);
+        num_addresses++;
     }
-    printf("%d %d\n", page_faults, tlb_hits);
+    printf("Number of Translated Addresses = %d\n", num_addresses);
+    printf("Page Faults = %d\n", page_faults);
+    printf("Page Fault Rate = %f\n", (float)page_faults / num_addresses);
+    printf("TLB Hits = %d\n", tlb_hits);
+    printf("TLB Hit Rate = %f\n", (float)tlb_hits / num_addresses);
     return 0;
 }
 
@@ -122,21 +125,12 @@ void init_page_table(PageTable *page_table, int length) {
     }
 }
 
-TableEntry get(PageTable page_table, int page_number) {
-    TableEntry defaultEntry = {
-        .value = -1
-    };
-    TableEntry entry = page_table.entries[page_number];
-    return entry.valid ? entry : defaultEntry;
-
-}
-
-void set(PageTable *page_table2, int page_number, int base) {
+void set(int page_number, int base) {
     page_table.entries[page_number].value = base;
     page_table.entries[page_number].valid = true;
 }
 
-void add(TLB *tlb2, int page_number, int frame_number) {
+void add(int page_number, int frame_number) {
     TableEntry entry = {
             .key = page_number,
             .value = frame_number,
@@ -153,6 +147,15 @@ int search(TableEntry entries[], int page_number, int size) {
         }
     }
     return -1;
+}
+
+void invalidate(TableEntry entries[], int index, int size) {
+    for (int i = 0; i < size; i++) {
+        if (entries[i].valid && entries[i].value == index) {
+            entries[i].valid = false;
+            break;
+        }
+    }
 }
 
 void add_address(unsigned virtual_address, FILE *backing_store) {
@@ -176,31 +179,21 @@ void add_address(unsigned virtual_address, FILE *backing_store) {
         else {
             current_base = page_table_index;
             if (is_used[page_table_index]) {
-                for (int i = 0; i < PAGE_TABLE_SIZE; i++) {
-                    if (page_table.entries[i].valid && page_table.entries[i].value == page_table_index) {
-                        page_table.entries[i].valid = false;
-                        break;
-                    }
-                }
-                for (int i = 0; i < FRAME_SIZE; i++) {
-                    if (tlb.entries[i].valid && tlb.entries[i].value == page_table_index) {
-                        tlb.entries[i].valid = false;
-                        break;
-                    }
-                }
+                invalidate(page_table.entries, page_table_index, PAGE_TABLE_SIZE);
+                invalidate(tlb.entries, page_table_index, NUMBER_OF_FRAMES);
             }
             else {
                 is_used[page_table_index] = true;
             }
-            set(&page_table, page_number, current_base);
-            page_table_index = (page_table_index + 1) % FRAME_SIZE;
+            set(page_number, current_base);
+            page_table_index = (page_table_index + 1) % NUMBER_OF_FRAMES;
 
             page_faults++;
 
             fseek(backing_store, page_number * PAGE_SIZE, SEEK_SET);
             fread(&memory[current_base * PAGE_SIZE], 1, PAGE_SIZE, backing_store);
         }
-        add(&tlb, page_number, current_base);
+        add(page_number, current_base);
     }
     phys_addr = (current_base * PAGE_SIZE) + offset;
 
