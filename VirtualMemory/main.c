@@ -23,6 +23,7 @@
 #define PAGE_SIZE 256
 #define TLB_SIZE 16
 #define PAGE_TABLE_SIZE 256
+#define BACKING_STORE "BACKING_STORE.bin"
 
 typedef struct {
     int key;
@@ -53,19 +54,25 @@ void add_address(unsigned, FILE *);
 void init_TLB(TLB *, int);
 void init_page_table(PageTable *, int);
 
-int main() {
+int main(int argc, char **argv) {
     memset(is_used, false, sizeof is_used);
     tlb.current_index = 0;
     init_TLB(&tlb, TLB_SIZE);
     init_page_table(&page_table, PAGE_TABLE_SIZE);
 
-    FILE *virtual_addrs = fopen("addresses.txt", "r");
+    if (argc < 2) {
+        printf("address file required\n");
+        exit(1);
+    }
+
+    char *address_file = argv[1];
+    FILE *virtual_addrs = fopen(address_file, "r");
     if (!virtual_addrs) {
         perror("fopen");
         return 1;
     }
     unsigned current_addr;
-    FILE *backing_store = fopen("BACKING_STORE.bin", "r");
+    FILE *backing_store = fopen(BACKING_STORE, "r");
     if (!backing_store) {
         perror("fopen");
         return 1;
